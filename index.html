@@ -168,20 +168,26 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
 #file-input{display:none}
 
 /* ===== Mobile ===== */
-#mobile-bar{display:none}
 @media (max-width:860px){
   #app{flex-direction:column}
-  #stage{padding:12px;order:1;flex:1;min-height:0}
-  #brand{top:10px;left:14px}
-  #brand .name{font-size:16px}
+  #stage{padding:10px;order:1;flex:1;min-height:0}
+  #brand{top:8px;left:12px}
+  #brand .logo{width:30px;height:30px;font-size:17px;border-radius:10px}
+  #brand .name{font-size:15px}
   #sidebar{
-    order:2;width:100%;flex-shrink:0;max-height:44dvh;border-left:none;border-top:1px solid var(--line);
+    order:2;width:100%;flex-shrink:0;max-height:42dvh;border-left:none;border-top:1px solid var(--line);
     flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:10px;padding:12px;align-items:stretch;
+    scroll-snap-type:x mandatory;
   }
-  #sidebar .sec{min-width:230px}
+  #sidebar .sec{min-width:238px;scroll-snap-align:start}
   .side-title{display:none}
   #img-count{display:none}
+  #tilebar{max-width:94vw;flex-wrap:wrap}
+  #tilebar button{padding:10px 14px;font-size:13px}
+  #welcome h1{font-size:52px}
 }
+button{touch-action:manipulation}
+input[type=range]{touch-action:pan-x}
 </style>
 </head>
 <body>
@@ -210,6 +216,8 @@ input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;bac
       </div>
       <div id="drop-veil"><span>SUELTA TUS IMÁGENES</span></div>
       <div id="tilebar">
+        <button id="tb-prev" title="Mover atrás">◄</button>
+        <button id="tb-next" title="Mover adelante">►</button>
         <button class="hero" id="tb-hero" title="Hacer principal">★ Principal</button>
         <button id="tb-del" class="del" title="Eliminar">✕ Quitar</button>
       </div>
@@ -490,10 +498,14 @@ function computeLayout(imgs, st, W, H){
    RENDER
    ============================================================ */
 const BASE = 560; // tamaño base del tablero en pantalla
+const IS_TOUCH = window.matchMedia && matchMedia("(pointer: coarse)").matches;
 function boardSize(){
   const ar = state.expW / state.expH;
-  let w = BASE, h = BASE / ar;
-  if (h > BASE){ h = BASE; w = BASE * ar; }
+  // en móvil el tablero se ajusta al espacio visible
+  const availW = Math.max(240, stage.clientWidth - 24);
+  const availH = Math.max(240, stage.clientHeight - 24);
+  let w = Math.min(BASE, availW), h = w / ar;
+  if (h > availH){ h = availH; w = h * ar; }
   const z = state.zoom / 100;
   return { w: w * z, h: h * z };
 }
@@ -626,6 +638,20 @@ function removeSelected(){
   render(); toast("Imagen eliminada");
 }
 $("tb-del").onclick = removeSelected;
+function moveSelected(dir){
+  // reordenar con botones ◄ ► (funciona en táctil, donde no hay drag & drop)
+  const i = state.images.findIndex(im => im.id === state.selected);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= state.images.length) return;
+  pushHist();
+  const tmp = state.images[i]; state.images[i] = state.images[j]; state.images[j] = tmp;
+  state.seed += 1;
+  render();
+  selectTile(state.selected);
+  toast(dir < 0 ? "◄ Movida atrás" : "Movida adelante ►");
+}
+$("tb-prev").onclick = e => { e.stopPropagation(); moveSelected(-1); };
+$("tb-next").onclick = e => { e.stopPropagation(); moveSelected(1); };
 $("tb-hero").onclick = () => {
   const i = state.images.findIndex(im => im.id === state.selected);
   if (i <= 0) return;
@@ -807,11 +833,19 @@ $("btn-export").onclick = async () => {
   toast("Generando PNG en alta…");
   try{
     const cv = await renderPNG();
-    const a = document.createElement("a");
-    a.download = "bento-studio-" + state.expW + "x" + state.expH + ".png";
-    a.href = cv.toDataURL("image/png");
-    document.body.appendChild(a); a.click(); a.remove();
-    toast("⬇ PNG descargado");
+    const url = cv.toDataURL("image/png");
+    if (IS_TOUCH){
+      // en móvil: mostrar la imagen para guardarla con pulsación larga
+      $("preview-img").src = url;
+      $("preview").classList.add("show");
+      toast("Mantén presionada la imagen para guardarla");
+    } else {
+      const a = document.createElement("a");
+      a.download = "bento-studio-" + state.expW + "x" + state.expH + ".png";
+      a.href = url;
+      document.body.appendChild(a); a.click(); a.remove();
+      toast("⬇ PNG descargado");
+    }
   }catch(err){ toast("No se pudo exportar"); }
 };
 
@@ -894,6 +928,16 @@ function restore(){
 
 /* init */
 (function init(){
+  if (IS_TOUCH){
+    // texto adaptado a móvil (no hay arrastrar y soltar)
+    const p = document.querySelector("#empty-hint p");
+    if (p) p.innerHTML = "<b>Toca para añadir imágenes</b><br>desde tu galería o archivos";
+    const hint = document.querySelector(".sec .hint");
+    if (hint) hint.innerHTML = 'Se exporta al tamaño exacto de arriba.<br><span class="kbd">Toca</span> una imagen para seleccionarla · usa ◄ ► para reordenar.';
+  }
+  // re-ajustar el tablero al rotar o cambiar el tamaño
+  let rzT;
+  window.addEventListener("resize", () => { clearTimeout(rzT); rzT = setTimeout(render, 160); });
   const had = restore();
   syncControls();
   render();
