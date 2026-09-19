@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bento Studio — Crea dashboards visuales</title>
+<meta name="description" content="Bento Studio: sube tus imágenes, arma composiciones tipo bento y expórtalas en alta resolución.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0b0d; --panel:#101014; --panel2:#16161c; --line:#26262e;
+  --txt:#f5f5f7; --muted:#9a9aa5;
+  --blue:#2f7bff; --yellow:#ffd21f; --red:#ff4444; --cyan:#22d3ee;
+  --magenta:#e93df0; --green:#22c55e; --purple:#a572ff;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--txt);
+  background-image:radial-gradient(#1e1e26 1.1px, transparent 1.1px);
+  background-size:22px 22px; overflow:hidden;
+}
+h1,h2,h3,.anton{font-family:'Anton',Impact,sans-serif;letter-spacing:.02em;font-weight:400}
+button{font-family:inherit;cursor:pointer;border:none}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2c2c36;border-radius:8px}
+
+/* ===== App layout ===== */
+#app{display:flex;height:100dvh;width:100vw}
+#stage{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-width:0;padding:28px;overflow:auto}
+#brand{position:absolute;top:18px;left:22px;display:flex;align-items:center;gap:10px;z-index:5;user-select:none}
+#brand .logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,var(--red),var(--magenta));display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 18px rgba(233,61,240,.35)}
+#brand .name{font-family:'Anton';font-size:20px;letter-spacing:.06em}
+#brand .name span{color:var(--red)}
+
+/* ===== Artboard ===== */
+#board-wrap{position:relative;transition:transform .15s ease}
+#board{
+  position:relative;background:#000;border:2px dashed #3a3a46;border-radius:18px;
+  overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,.55);
+  touch-action:none;
+}
+#board.empty{display:flex;align-items:center;justify-content:center;cursor:pointer}
+#empty-hint{text-align:center;color:var(--muted);pointer-events:none;padding:20px}
+#empty-hint .plus{
+  width:92px;height:92px;margin:0 auto 16px;border-radius:50%;border:2px dashed #4a4a58;
+  display:flex;align-items:center;justify-content:center;font-size:44px;color:#6a6a78;
+}
+#empty-hint p{font-size:14px;line-height:1.6}
+#empty-hint p b{color:var(--txt)}
+.tile{position:absolute;overflow:hidden;background:#1a1a21;cursor:grab;user-select:none}
+.tile img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+.tile.selected{outline:3px solid var(--blue);outline-offset:-3px;z-index:10}
+.tile.dragging{opacity:.35}
+#drop-veil{position:absolute;inset:0;border:3px dashed var(--blue);border-radius:14px;background:rgba(47,123,255,.12);display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none}
+#drop-veil span{font-family:'Anton';font-size:26px;letter-spacing:.05em;background:rgba(0,0,0,.6);padding:10px 22px;border-radius:12px}
+
+/* ===== Floating tile toolbar ===== */
+#tilebar{
+  position:absolute;display:none;gap:6px;z-index:60;background:#000;border:1px solid var(--line);
+  border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.6);
+}
+#tilebar button{font-size:12px;font-weight:700;padding:8px 12px;border-radius:8px;color:#fff;background:#23232c}
+#tilebar button:hover{background:#30303c}
+#tilebar button.hero{background:var(--yellow);color:#111}
+#tilebar button.del{background:var(--red)}
+
+/* ===== Sidebar ===== */
+#sidebar{
+  width:296px;flex-shrink:0;background:#0e0e12;border-left:1px solid var(--line);
+  overflow-y:auto;padding:18px 16px 28px;display:flex;flex-direction:column;gap:14px;z-index:6;
+}
+.side-title{font-size:30px;letter-spacing:.08em;text-align:center;margin-bottom:2px}
+.side-title span{color:var(--red)}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.sec-label{font-size:10px;font-weight:700;letter-spacing:.22em;color:var(--muted);margin-bottom:10px}
+.btn-row{display:flex;gap:8px}
+.btn{
+  flex:1;border-radius:10px;padding:12px 6px;font-family:'Anton';font-size:15px;letter-spacing:.05em;
+  color:#fff;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .08s,filter .15s;
+}
+.btn:active{transform:scale(.96)}
+.btn:hover{filter:brightness(1.12)}
+.btn.blue{background:var(--blue)} .btn.yellow{background:var(--yellow);color:#141414}
+.btn.red{background:var(--red)} .btn.cyan{background:var(--cyan);color:#062a30}
+.btn.magenta{background:var(--magenta)} .btn.green{background:var(--green);color:#062a12}
+.btn.dark{background:#1c1c24;border:1px solid #2e7d4f;color:#d7ffe4;font-size:12px}
+.btn.ghost{background:#1c1c24;color:var(--txt);font-size:13px}
+.btn.block{width:100%;margin-top:8px}
+.btn.big{padding:15px 6px;font-size:17px}
+.btn:disabled{opacity:.35;cursor:default;filter:none;transform:none}
+
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{
+  background:#1c1c24;color:var(--muted);border:1px solid transparent;border-radius:9px;
+  padding:8px 10px;font-size:12px;font-weight:700;flex:1 1 28%;text-align:center;transition:all .12s;
+}
+.pill:hover{color:#fff;background:#26262f}
+.pill.active{background:var(--blue);color:#fff}
+.dims{display:flex;gap:8px;align-items:center}
+.dims input{
+  width:100%;background:#1c1c24;border:1px solid var(--line);border-radius:9px;color:#fff;
+  padding:10px;font-size:14px;font-weight:600;text-align:center;outline:none;
+}
+.dims input:focus{border-color:var(--blue)}
+.dims span{color:var(--muted);font-weight:700}
+
+.slider-row{margin:10px 0 2px}
+.slider-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.slider-head label{font-size:10px;font-weight:700;letter-spacing:.2em;color:var(--muted)}
+.slider-head output{font-size:12px;font-weight:700;color:#fff;background:#1c1c24;padding:2px 8px;border-radius:6px}
+input[type=range]{width:100%;appearance:none;-webkit-appearance:none;height:6px;border-radius:6px;background:#2a2a34;outline:none}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;cursor:pointer;
+  border:none;box-shadow:0 2px 8px rgba(0,0,0,.5);
+}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;cursor:pointer;border:none}
+
+.color-row{display:flex;gap:8px;align-items:center}
+.color-row input[type=color]{width:52px;height:42px;border:none;border-radius:10px;background:#1c1c24;padding:4px;cursor:pointer}
+.swatches{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.sw{width:30px;height:30px;border-radius:8px;cursor:pointer;border:2px solid transparent;transition:transform .1s}
+.sw:hover{transform:scale(1.12)} .sw.active{border-color:#fff}
+
+.hint{font-size:11px;color:var(--muted);line-height:1.55}
+.kbd{background:#26262f;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;color:#fff}
+#img-count{font-size:11px;color:var(--muted);text-align:center}
+
+/* ===== Welcome modal ===== */
+#welcome{
+  position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,5,8,.72);backdrop-filter:blur(10px);padding:20px;
+}
+#welcome .card{text-align:center;max-width:520px;animation:pop .35s ease}
+@keyframes pop{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+#welcome h1{font-size:clamp(44px,8vw,84px);color:var(--red);letter-spacing:.04em;line-height:1;margin-bottom:14px;text-shadow:0 6px 40px rgba(255,68,68,.35)}
+#welcome p{font-size:17px;color:#e8e8ee;margin-bottom:28px}
+#welcome p b{color:#fff}
+#start-btn{
+  font-family:'Anton';font-size:20px;letter-spacing:.08em;background:#fff;color:#111;
+  padding:16px 46px;border-radius:999px;transition:transform .12s,box-shadow .2s;
+  box-shadow:0 8px 30px rgba(255,255,255,.18);
+}
+#start-btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 12px 40px rgba(255,255,255,.28)}
+#start-btn:active{transform:scale(.97)}
+#welcome .mini{margin-top:22px;font-size:12px;color:var(--muted)}
+
+/* ===== Toast ===== */
+#toast{
+  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);z-index:200;
+  background:#fff;color:#111;font-weight:600;font-size:14px;padding:13px 24px;border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);transition:transform .3s cubic-bezier(.2,.9,.3,1.2);pointer-events:none;
+  max-width:90vw;text-align:center;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ===== Fullscreen preview ===== */
+#preview{position:fixed;inset:0;z-index:150;background:#000;display:none;align-items:center;justify-content:center;flex-direction:column;gap:18px;padding:24px}
+#preview.show{display:flex}
+#preview img{max-width:94vw;max-height:82vh;border-radius:12px;box-shadow:0 20px 80px rgba(0,0,0,.8)}
+#preview .bar{display:flex;gap:10px}
+#preview .bar button{background:#1c1c24;color:#fff;font-weight:700;padding:12px 26px;border-radius:10px;font-size:14px}
+#preview .bar button:hover{background:#2a2a34}
+
+#file-input{display:none}
+
+/* ===== Mobile ===== */
+#mobile-bar{display:none}
+@media (max-width:860px){
+  #app{flex-direction:column}
+  #stage{padding:12px;order:1;flex:1;min-height:0}
+  #brand{top:10px;left:14px}
+  #brand .name{font-size:16px}
+  #sidebar{
+    order:2;width:100%;flex-shrink:0;max-height:44dvh;border-left:none;border-top:1px solid var(--line);
+    flex-direction:row;overflow-x:auto;overflow-y:hidden;gap:10px;padding:12px;align-items:stretch;
+  }
+  #sidebar .sec{min-width:230px}
+  .side-title{display:none}
+  #img-count{display:none}
+}
+</style>
+</head>
+<body>
+
+<div id="welcome">
+  <div class="card">
+    <h1>BENTO STUDIO</h1>
+    <p>Tú subes las imágenes. <b>Nosotros partimos el bento.</b><br>Crea dashboards y tableros visuales en segundos.</p>
+    <button id="start-btn">EMPEZAR A CREAR</button>
+    <div class="mini">Gratis · Sin cuentas · Tus imágenes no salen de tu dispositivo</div>
+  </div>
+</div>
+
+<div id="app">
+  <main id="stage">
+    <div id="brand">
+      <div class="logo">🍱</div>
+      <div class="name">BENTO <span>STUDIO</span></div>
+    </div>
+    <div id="board-wrap">
+      <div id="board" class="empty">
+        <div id="empty-hint">
+          <div class="plus">＋</div>
+          <p><b>Toca para añadir imágenes</b><br>o arrástralas aquí</p>
+        </div>
+      </div>
+      <div id="drop-veil"><span>SUELTA TUS IMÁGENES</span></div>
+      <div id="tilebar">
+        <button class="hero" id="tb-hero" title="Hacer principal">★ Principal</button>
+        <button id="tb-del" class="del" title="Eliminar">✕ Quitar</button>
+      </div>
+    </div>
+  </main>
+
+  <aside id="sidebar">
+    <div class="side-title anton">BENTO<span>.</span></div>
+
+    <div class="sec">
+      <div class="btn-row">
+        <button class="btn blue" id="btn-add" title="Añadir imágenes">＋</button>
+        <button class="btn yellow" id="btn-shuffle" title="Mezclar">⇄</button>
+        <button class="btn red" id="btn-clear" title="Limpiar todo">✕</button>
+      </div>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn ghost" id="btn-demo">✨ DEMO</button>
+      </div>
+      <div id="img-count">0 imágenes</div>
+    </div>
+
+    <div class="sec">
+      <div class="btn-row">
+        <button class="btn dark" id="btn-undo">◄ DESHACER</button>
+        <button class="btn dark" id="btn-redo">REHACER ►</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">FORMATO</div>
+      <div class="pills" id="ratios">
+        <button class="pill active" data-w="1080" data-h="1080">1:1</button>
+        <button class="pill" data-w="1200" data-h="900">4:3</button>
+        <button class="pill" data-w="1920" data-h="1080">16:9</button>
+        <button class="pill" data-w="900" data-h="1200">3:4</button>
+        <button class="pill" data-w="1080" data-h="1920">9:16</button>
+        <button class="pill" data-w="1680" data-h="720">21:9</button>
+      </div>
+      <div class="sec-label" style="margin-top:12px">TAMAÑO DE EXPORTACIÓN (PX)</div>
+      <div class="dims">
+        <input type="number" id="in-w" value="1080" min="200" max="8000" step="10">
+        <span>×</span>
+        <input type="number" id="in-h" value="1080" min="200" max="8000" step="10">
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">MODO DE COMPOSICIÓN</div>
+      <div class="pills" id="modes">
+        <button class="pill active" data-mode="bento">BENTO</button>
+        <button class="pill" data-mode="flow">FLOW</button>
+        <button class="pill" data-mode="grid">GRID</button>
+        <button class="pill" data-mode="hero">HERO</button>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn yellow" id="btn-mix" style="font-size:13px">MEZCLAR</button>
+        <button class="btn magenta" id="btn-magic" style="font-size:13px">✦ MAGIA</button>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">AJUSTES</div>
+      <div class="slider-row">
+        <div class="slider-head"><label>COLUMNAS</label><output id="o-cols">4</output></div>
+        <input type="range" id="s-cols" min="2" max="6" step="1" value="4">
+      </div>
+      <div class="slider-row">
+        <div class="slider-head"><label>ESPACIO</label><output id="o-gap">12</output></div>
+        <input type="range" id="s-gap" min="0" max="60" step="1" value="12">
+      </div>
+      <div class="slider-row">
+        <div class="slider-head"><label>MARGEN</label><output id="o-margin">32</output></div>
+        <input type="range" id="s-margin" min="0" max="120" step="1" value="32">
+      </div>
+      <div class="slider-row">
+        <div class="slider-head"><label>RADIO</label><output id="o-radius">18</output></div>
+        <input type="range" id="s-radius" min="0" max="80" step="1" value="18">
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">FONDO</div>
+      <div class="color-row">
+        <input type="color" id="in-bg" value="#000000">
+        <div class="swatches" id="swatches"></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">VISTA</div>
+      <div class="slider-row">
+        <div class="slider-head"><label>ZOOM</label><output id="o-zoom">100%</output></div>
+        <input type="range" id="s-zoom" min="20" max="150" step="5" value="100">
+      </div>
+      <button class="btn ghost block" id="btn-preview">▶ VISTA PREVIA</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">EXPORTAR</div>
+      <button class="btn cyan big block" id="btn-export">⬇ PNG EN ALTA</button>
+      <div class="hint" style="margin-top:10px">
+        Se exporta al tamaño exacto de arriba.<br>
+        <span class="kbd">Supr</span> elimina la imagen seleccionada · arrastra para reordenar.
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="preview">
+  <img id="preview-img" alt="Vista previa">
+  <div class="bar">
+    <button id="preview-close">✕ Cerrar</button>
+    <button id="preview-dl">⬇ Descargar PNG</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="file-input" accept="image/*" multiple>
+
+<script>
+"use strict";
+/* ============================================================
+   BENTO STUDIO — motor de composiciones tipo bento
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const board = $("board"), stage = $("stage");
+
+const state = {
+  images: [],        // {id, src, w, h}
+  mode: "bento",
+  cols: 4, gap: 12, margin: 32, radius: 18,
+  bg: "#000000",
+  expW: 1080, expH: 1080,
+  zoom: 100,
+  seed: 1,
+  selected: null,
+};
+let uid = 1;
+
+/* ---------- historial (deshacer / rehacer) ---------- */
+const hist = { stack: [], idx: -1 };
+function snapshot(){
+  return JSON.stringify({
+    images: state.images, mode: state.mode, cols: state.cols,
+    gap: state.gap, margin: state.margin, radius: state.radius,
+    bg: state.bg, expW: state.expW, expH: state.expH, seed: state.seed,
+  });
+}
+function pushHist(){
+  hist.stack = hist.stack.slice(0, hist.idx + 1);
+  hist.stack.push(snapshot());
+  if (hist.stack.length > 60) hist.stack.shift();
+  hist.idx = hist.stack.length - 1;
+  syncHistBtns();
+}
+function applySnap(json){
+  const s = JSON.parse(json);
+  Object.assign(state, s);
+  state.selected = null;
+  syncControls(); render();
+}
+function undo(){ if (hist.idx > 0){ hist.idx--; applySnap(hist.stack[hist.idx]); } syncHistBtns(); }
+function redo(){ if (hist.idx < hist.stack.length - 1){ hist.idx++; applySnap(hist.stack[hist.idx]); } syncHistBtns(); }
+function syncHistBtns(){ $("btn-undo").disabled = hist.idx <= 0; $("btn-redo").disabled = hist.idx >= hist.stack.length - 1; }
+
+/* ---------- RNG con semilla (para "magia" reproducible) ---------- */
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+/* ============================================================
+   MOTOR DE LAYOUT — devuelve tiles {x,y,w,h} en píxeles
+   sobre un lienzo W×H, con margen/gap aplicados.
+   ============================================================ */
+function computeLayout(imgs, st, W, H){
+  const n = imgs.length;
+  if (!n) return [];
+  const m = st.margin, g = st.gap;
+  const iw = W - m * 2, ih = H - m * 2;
+  const tiles = [];
+  const rng = mulberry32(st.seed * 1000 + 7);
+
+  if (st.mode === "grid"){
+    const cols = Math.min(st.cols, n);
+    const rows = Math.ceil(n / cols);
+    const cw = (iw - g * (cols - 1)) / cols;
+    const ch = (ih - g * (rows - 1)) / rows;
+    imgs.forEach((im, i) => {
+      const c = i % cols, r = Math.floor(i / cols);
+      tiles.push({ x: m + c * (cw + g), y: m + r * (ch + g), w: cw, h: ch, img: im });
+    });
+  }
+  else if (st.mode === "flow"){
+    // masonry por columnas usando la proporción real de cada imagen
+    const cols = Math.min(st.cols, n);
+    const cw = (iw - g * (cols - 1)) / cols;
+    const colH = new Array(cols).fill(0);
+    imgs.forEach(im => {
+      const ar = (im.h && im.w) ? im.h / im.w : 1;
+      const th = Math.max(60, cw * Math.min(1.6, Math.max(0.5, ar)));
+      let c = 0;
+      for (let k = 1; k < cols; k++) if (colH[k] < colH[c]) c = k;
+      tiles.push({ x: m + c * (cw + g), y: m + colH[c], w: cw, h: th, img: im });
+      colH[c] += th + g;
+    });
+    // reescalar verticalmente para llenar el alto disponible
+    const maxH = Math.max(...colH) - g;
+    if (maxH > 0){
+      const k = ih / maxH;
+      tiles.forEach(t => { t.y = m + (t.y - m) * k; t.h *= k; });
+    }
+  }
+  else if (st.mode === "hero"){
+    const hero = imgs[0];
+    const sideW = iw * 0.36, heroW = iw - sideW - g;
+    tiles.push({ x: m, y: m, w: heroW, h: ih, img: hero });
+    const rest = imgs.slice(1);
+    if (rest.length){
+      const rows = rest.length;
+      const rh = (ih - g * (rows - 1)) / rows;
+      rest.forEach((im, i) => {
+        tiles.push({ x: m + heroW + g, y: m + i * (rh + g), w: sideW, h: rh, img: im });
+      });
+    }
+  }
+  else { // bento — empaquetado orgánico sobre rejilla 6×6
+    const GC = 6, GR = 6;
+    const grid = Array.from({length: GR}, () => new Array(GC).fill(false));
+    const uw = (iw - g * (GC - 1)) / GC;
+    const uh = (ih - g * (GR - 1)) / GR;
+    const fits = (r, c, w, h) => {
+      if (c + w > GC || r + h > GR) return false;
+      for (let i = 0; i < h; i++) for (let j = 0; j < w; j++)
+        if (grid[r + i][c + j]) return false;
+      return true;
+    };
+    const occupy = (r, c, w, h) => {
+      for (let i = 0; i < h; i++) for (let j = 0; j < w; j++) grid[r + i][c + j] = true;
+    };
+    const POOL = [
+      [2,2,3],[3,2,2],[2,3,2],[3,3,1],[2,1,3],[1,2,3],[1,1,4],[3,1,2],[1,3,2],[4,2,1],
+    ];
+    const pickSize = (first) => {
+      if (first) return [3, 3];
+      const tot = POOL.reduce((a, p) => a + p[2], 0);
+      let x = rng() * tot;
+      for (const p of POOL){ x -= p[2]; if (x <= 0) return [p[0], p[1]]; }
+      return [1, 1];
+    };
+    imgs.forEach((im, idx) => {
+      let [w, h] = pickSize(idx === 0);
+      let placed = false;
+      // intentar el tamaño elegido en posiciones aleatorias
+      for (let t = 0; t < 60 && !placed; t++){
+        const r = Math.floor(rng() * GR), c = Math.floor(rng() * GC);
+        if (fits(r, c, w, h)){ occupy(r, c, w, h); placed = true;
+          tiles.push({ x: m + c * (uw + g), y: m + r * (uh + g), w: w * uw + (w - 1) * g, h: h * uh + (h - 1) * g, img: im }); }
+      }
+      // degradar a tamaños menores
+      const fallbacks = [[2,2],[2,1],[1,2],[1,1]];
+      for (const [fw, fh] of fallbacks){
+        if (placed) break;
+        for (let r = 0; r < GR && !placed; r++) for (let c = 0; c < GC && !placed; c++)
+          if (fits(r, c, fw, fh)){ occupy(r, c, fw, fh); placed = true;
+            tiles.push({ x: m + c * (uw + g), y: m + r * (uh + g), w: fw * uw + (fw - 1) * g, h: fh * uh + (fh - 1) * g, img: im }); }
+      }
+    });
+  }
+  return tiles;
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+const BASE = 560; // tamaño base del tablero en pantalla
+function boardSize(){
+  const ar = state.expW / state.expH;
+  let w = BASE, h = BASE / ar;
+  if (h > BASE){ h = BASE; w = BASE * ar; }
+  const z = state.zoom / 100;
+  return { w: w * z, h: h * z };
+}
+function render(){
+  const { w, h } = boardSize();
+  board.style.width = w + "px";
+  board.style.height = h + "px";
+  board.style.background = state.bg;
+  board.classList.toggle("empty", state.images.length === 0);
+  $("empty-hint").style.display = state.images.length ? "none" : "block";
+
+  // limpiar tiles
+  board.querySelectorAll(".tile").forEach(t => t.remove());
+
+  const tiles = computeLayout(state.images, state, w, h);
+  tiles.forEach(t => {
+    const el = document.createElement("div");
+    el.className = "tile" + (state.selected === t.img.id ? " selected" : "");
+    el.style.left = t.x + "px"; el.style.top = t.y + "px";
+    el.style.width = Math.max(2, t.w) + "px"; el.style.height = Math.max(2, t.h) + "px";
+    el.style.borderRadius = state.radius + "px";
+    el.dataset.id = t.img.id;
+    const img = document.createElement("img");
+    img.src = t.img.src; img.alt = ""; img.draggable = false;
+    el.appendChild(img);
+    el.addEventListener("click", e => { e.stopPropagation(); selectTile(t.img.id); });
+    // drag & drop para reordenar
+    el.draggable = true;
+    el.addEventListener("dragstart", e => {
+      e.dataTransfer.setData("text/plain", t.img.id);
+      el.classList.add("dragging");
+    });
+    el.addEventListener("dragend", () => el.classList.remove("dragging"));
+    el.addEventListener("drop", e => {
+      e.preventDefault();
+      const fromId = +e.dataTransfer.getData("text/plain");
+      swapImages(fromId, t.img.id);
+    });
+    el.addEventListener("dragover", e => e.preventDefault());
+    board.appendChild(el);
+  });
+
+  $("img-count").textContent = state.images.length +
+    (state.images.length === 1 ? " imagen" : " imágenes");
+  persist();
+}
+
+function selectTile(id){
+  state.selected = id;
+  board.querySelectorAll(".tile").forEach(t =>
+    t.classList.toggle("selected", +t.dataset.id === id));
+  const bar = $("tilebar");
+  if (id == null){ bar.style.display = "none"; return; }
+  const el = board.querySelector('.tile[data-id="' + id + '"]');
+  if (!el){ bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  const sw = $("board-wrap").getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  let x = r.left - sw.left, y = r.top - sw.top - 52;
+  if (y < 0) y = r.bottom - sw.top + 8;
+  bar.style.left = Math.max(4, Math.min(x, sw.width - 190)) + "px";
+  bar.style.top = Math.max(4, y) + "px";
+}
+
+function swapImages(fromId, toId){
+  const a = state.images.findIndex(i => i.id === fromId);
+  const b = state.images.findIndex(i => i.id === toId);
+  if (a < 0 || b < 0 || a === b) return;
+  pushHist();
+  const tmp = state.images[a]; state.images[a] = state.images[b]; state.images[b] = tmp;
+  state.seed += 1;
+  render();
+}
+
+/* ============================================================
+   IMPORTAR IMÁGENES
+   ============================================================ */
+const fileInput = $("file-input");
+function addFiles(files){
+  const list = Array.prototype.filter.call(files, f => f.type.indexOf("image/") === 0);
+  if (!list.length){ toast("Solo se aceptan imágenes"); return; }
+  pushHist();
+  let pending = list.length;
+  const done = () => { if (--pending === 0){ state.seed += 1; render(); } };
+  list.forEach(f => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        state.images.push({ id: uid++, src: rd.result, w: img.naturalWidth, h: img.naturalHeight });
+        done();
+      };
+      img.onerror = done;
+      img.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+  });
+  toast(list.length === 1 ? "Imagen añadida" : list.length + " imágenes añadidas");
+}
+$("btn-add").onclick = () => fileInput.click();
+fileInput.onchange = () => { addFiles(fileInput.files); fileInput.value = ""; };
+board.addEventListener("click", e => { if (state.images.length === 0) fileInput.click(); });
+
+// drag & drop de archivos sobre el tablero
+let dragDepth = 0;
+board.addEventListener("dragenter", e => { e.preventDefault(); dragDepth++; $("drop-veil").style.display = "flex"; });
+board.addEventListener("dragleave", e => { e.preventDefault(); if (--dragDepth <= 0){ dragDepth = 0; $("drop-veil").style.display = "none"; } });
+board.addEventListener("dragover", e => e.preventDefault());
+board.addEventListener("drop", e => {
+  e.preventDefault(); dragDepth = 0; $("drop-veil").style.display = "none";
+  if (e.dataTransfer.files && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+});
+stage.addEventListener("click", e => { if (e.target === stage) selectTile(null); });
+document.addEventListener("keydown", e => {
+  const tag = document.activeElement ? document.activeElement.tagName : "";
+  if ((e.key === "Delete" || e.key === "Backspace") && state.selected != null &&
+      tag !== "INPUT" && tag !== "TEXTAREA"){
+    e.preventDefault(); removeSelected();
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey){ e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))){ e.preventDefault(); redo(); }
+});
+
+function removeSelected(){
+  const i = state.images.findIndex(im => im.id === state.selected);
+  if (i < 0) return;
+  pushHist();
+  state.images.splice(i, 1);
+  state.selected = null; state.seed += 1;
+  render(); toast("Imagen eliminada");
+}
+$("tb-del").onclick = removeSelected;
+$("tb-hero").onclick = () => {
+  const i = state.images.findIndex(im => im.id === state.selected);
+  if (i <= 0) return;
+  pushHist();
+  const im = state.images.splice(i, 1)[0];
+  state.images.unshift(im);
+  state.seed += 1; render(); toast("Ahora es la principal ★");
+};
+
+$("btn-clear").onclick = () => {
+  if (!state.images.length) return;
+  if (!confirm("¿Quitar todas las imágenes?")) return;
+  pushHist();
+  state.images = []; state.selected = null; state.seed += 1;
+  render();
+};
+
+/* ============================================================
+   CONTROLES
+   ============================================================ */
+function bindSlider(id, out, fmt, apply){
+  const s = $(id), o = $(out);
+  const show = () => o.textContent = fmt(+s.value);
+  s.addEventListener("input", () => { show(); apply(+s.value); render(); });
+  s.addEventListener("change", () => pushHist());
+  show();
+}
+bindSlider("s-cols", "o-cols", v => v, v => { state.cols = v; });
+bindSlider("s-gap", "o-gap", v => v, v => { state.gap = v; });
+bindSlider("s-margin", "o-margin", v => v, v => { state.margin = v; });
+bindSlider("s-radius", "o-radius", v => v, v => { state.radius = v; });
+bindSlider("s-zoom", "o-zoom", v => v + "%", v => { state.zoom = v; });
+
+$("ratios").addEventListener("click", e => {
+  const p = e.target.closest(".pill"); if (!p) return;
+  pushHist();
+  const pills = document.querySelectorAll("#ratios .pill");
+  pills.forEach(x => x.classList.remove("active"));
+  p.classList.add("active");
+  state.expW = +p.dataset.w; state.expH = +p.dataset.h;
+  $("in-w").value = state.expW; $("in-h").value = state.expH;
+  render();
+});
+const dimsChanged = () => {
+  pushHist();
+  state.expW = Math.min(8000, Math.max(200, +$("in-w").value || 1080));
+  state.expH = Math.min(8000, Math.max(200, +$("in-h").value || 1080));
+  document.querySelectorAll("#ratios .pill").forEach(x =>
+    x.classList.toggle("active", +x.dataset.w === state.expW && +x.dataset.h === state.expH));
+  render();
+};
+$("in-w").addEventListener("change", dimsChanged);
+$("in-h").addEventListener("change", dimsChanged);
+
+$("modes").addEventListener("click", e => {
+  const p = e.target.closest(".pill"); if (!p) return;
+  pushHist();
+  document.querySelectorAll("#modes .pill").forEach(x => x.classList.remove("active"));
+  p.classList.add("active");
+  state.mode = p.dataset.mode; state.seed += 1;
+  render();
+});
+
+function doShuffle(){
+  if (state.images.length < 2){ toast("Añade al menos 2 imágenes"); return; }
+  pushHist();
+  for (let i = state.images.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = state.images[i]; state.images[i] = state.images[j]; state.images[j] = tmp;
+  }
+  state.seed = Math.floor(Math.random() * 1e9);
+  render(); toast("⇄ Mezclado");
+}
+$("btn-shuffle").onclick = doShuffle;
+$("btn-mix").onclick = doShuffle;
+$("btn-magic").onclick = () => {
+  if (!state.images.length){ toast("Añade imágenes primero"); return; }
+  pushHist();
+  for (let i = state.images.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = state.images[i]; state.images[i] = state.images[j]; state.images[j] = tmp;
+  }
+  state.gap = 6 + Math.floor(Math.random() * 22);
+  state.radius = Math.floor(Math.random() * 36);
+  state.margin = 16 + Math.floor(Math.random() * 56);
+  state.seed = Math.floor(Math.random() * 1e9);
+  syncControls(); render(); toast("✦ ¡Magia aplicada!");
+};
+
+$("btn-undo").onclick = undo;
+$("btn-redo").onclick = redo;
+
+// fondo
+const SWATCHES = ["#000000","#ffffff","#111827","#7c3aed","#a572ff","#ec4899","#ef4444","#f59e0b","#10b981","#0ea5e9","#f5f0e6"];
+const swBox = $("swatches");
+SWATCHES.forEach(c => {
+  const d = document.createElement("div");
+  d.className = "sw" + (c === state.bg ? " active" : "");
+  d.style.background = c; d.title = c;
+  d.onclick = () => { pushHist(); setBg(c); render(); };
+  swBox.appendChild(d);
+});
+function setBg(c){
+  state.bg = c; $("in-bg").value = c;
+  const sws = swBox.querySelectorAll(".sw");
+  sws.forEach(x => x.classList.toggle("active", x.title === c));
+}
+$("in-bg").addEventListener("input", e => { setBg(e.target.value); render(); });
+$("in-bg").addEventListener("change", () => pushHist());
+
+function syncControls(){
+  $("s-cols").value = state.cols; $("o-cols").textContent = state.cols;
+  $("s-gap").value = state.gap; $("o-gap").textContent = state.gap;
+  $("s-margin").value = state.margin; $("o-margin").textContent = state.margin;
+  $("s-radius").value = state.radius; $("o-radius").textContent = state.radius;
+  $("s-zoom").value = state.zoom; $("o-zoom").textContent = state.zoom + "%";
+  $("in-w").value = state.expW; $("in-h").value = state.expH;
+  setBg(state.bg);
+  document.querySelectorAll("#modes .pill").forEach(x =>
+    x.classList.toggle("active", x.dataset.mode === state.mode));
+  document.querySelectorAll("#ratios .pill").forEach(x =>
+    x.classList.toggle("active", +x.dataset.w === state.expW && +x.dataset.h === state.expH));
+}
+
+/* ============================================================
+   EXPORTAR PNG EN ALTA
+   ============================================================ */
+function roundRect(ctx, x, y, w, h, r){
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function drawCover(ctx, img, x, y, w, h){
+  const ir = img.naturalWidth / img.naturalHeight, r = w / h;
+  let sw, sh, sx, sy;
+  if (ir > r){ sh = img.naturalHeight; sw = sh * r; sx = (img.naturalWidth - sw) / 2; sy = 0; }
+  else { sw = img.naturalWidth; sh = sw / r; sx = 0; sy = (img.naturalHeight - sh) / 2; }
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+function renderPNG(){
+  return new Promise((resolve) => {
+    const W = state.expW, H = state.expH;
+    const cv = document.createElement("canvas");
+    cv.width = W; cv.height = H;
+    const ctx = cv.getContext("2d");
+    ctx.fillStyle = state.bg; ctx.fillRect(0, 0, W, H);
+    const tiles = computeLayout(state.images, state, W, H);
+    const bw = boardSize().w || 1;
+    const rScale = W / bw;
+    const cache = {};
+    let pending = state.images.length;
+    if (!pending){ resolve(cv); return; }
+    const draw = () => {
+      tiles.forEach(t => {
+        const el = cache[t.img.id]; if (!el) return;
+        ctx.save();
+        roundRect(ctx, t.x, t.y, Math.max(1, t.w), Math.max(1, t.h), state.radius * rScale);
+        ctx.clip();
+        drawCover(ctx, el, t.x, t.y, Math.max(1, t.w), Math.max(1, t.h));
+        ctx.restore();
+      });
+      resolve(cv);
+    };
+    state.images.forEach(im => {
+      const el = new Image();
+      el.onload = () => { cache[im.id] = el; if (--pending === 0) draw(); };
+      el.onerror = () => { if (--pending === 0) draw(); };
+      el.src = im.src;
+    });
+  });
+}
+$("btn-export").onclick = async () => {
+  if (!state.images.length){ toast("Añade imágenes primero"); return; }
+  toast("Generando PNG en alta…");
+  try{
+    const cv = await renderPNG();
+    const a = document.createElement("a");
+    a.download = "bento-studio-" + state.expW + "x" + state.expH + ".png";
+    a.href = cv.toDataURL("image/png");
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("⬇ PNG descargado");
+  }catch(err){ toast("No se pudo exportar"); }
+};
+
+/* vista previa a pantalla completa */
+$("btn-preview").onclick = async () => {
+  if (!state.images.length){ toast("Añade imágenes primero"); return; }
+  const cv = await renderPNG();
+  $("preview-img").src = cv.toDataURL("image/png");
+  $("preview").classList.add("show");
+};
+$("preview-close").onclick = () => $("preview").classList.remove("show");
+$("preview-dl").onclick = () => { $("preview").classList.remove("show"); $("btn-export").onclick(); };
+
+/* ============================================================
+   DEMO — genera imágenes de ejemplo en el momento
+   ============================================================ */
+function demoImage(i){
+  const c = document.createElement("canvas"); c.width = 800; c.height = 800;
+  const x = c.getContext("2d");
+  const hues = [[265,210],[320,265],[200,160],[20,340],[150,200],[45,15]];
+  const hh = hues[i % hues.length];
+  const g = x.createLinearGradient(0, 0, 800, 800);
+  g.addColorStop(0, "hsl(" + hh[0] + " 70% 55%)"); g.addColorStop(1, "hsl(" + hh[1] + " 70% 40%)");
+  x.fillStyle = g; x.fillRect(0, 0, 800, 800);
+  x.globalAlpha = .18; x.fillStyle = "#fff";
+  for (let k = 0; k < 5; k++){
+    x.beginPath();
+    x.arc(100 + ((i * 173 + k * 197) % 620), 100 + ((i * 131 + k * 269) % 620), 40 + ((i + k * 37) % 90), 0, 7);
+    x.fill();
+  }
+  x.globalAlpha = 1;
+  x.fillStyle = "rgba(255,255,255,.92)";
+  x.font = "700 64px Inter, sans-serif"; x.textAlign = "center"; x.textBaseline = "middle";
+  const labels = ["LOGO", "MOCKUP", "BRAND", "DISEÑO", "POST", "PORTADA"];
+  x.fillText(labels[i % labels.length], 400, 400);
+  x.font = "500 30px Inter, sans-serif"; x.globalAlpha = .75;
+  x.fillText("BENTO STUDIO", 400, 480);
+  return { id: uid++, src: c.toDataURL("image/png"), w: 800, h: 800 };
+}
+$("btn-demo").onclick = () => {
+  pushHist();
+  state.images = [];
+  for (let i = 0; i < 6; i++) state.images.push(demoImage(i));
+  state.selected = null; state.seed = Math.floor(Math.random() * 1e9);
+  render(); toast("✨ Demo cargada — ¡prueba los controles!");
+};
+
+/* ============================================================
+   VARIOS
+   ============================================================ */
+let toastT;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove("show"), 2200);
+}
+$("start-btn").onclick = () => {
+  $("welcome").style.display = "none";
+  if (!state.images.length) setTimeout(() => toast("Toca ＋ o arrastra imágenes para empezar"), 400);
+};
+
+// persistencia local
+function persist(){
+  try{ localStorage.setItem("bento-studio-v1", snapshot()); }
+  catch(e){ /* almacenamiento lleno: se ignora */ }
+}
+function restore(){
+  try{
+    const raw = localStorage.getItem("bento-studio-v1");
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    if (!s.images || !s.images.length) return false;
+    Object.assign(state, s);
+    const ids = state.images.map(i => i.id);
+    uid = Math.max.apply(null, ids.concat([0])) + 1;
+    return true;
+  }catch(e){ return false; }
+}
+
+/* init */
+(function init(){
+  const had = restore();
+  syncControls();
+  render();
+  pushHist(); // estado inicial en el historial
+  if (had) setTimeout(() => { $("welcome").style.display = "none"; toast("Proyecto anterior recuperado"); }, 600);
+})();
+</script>
+</body>
+</html>
